@@ -7,7 +7,7 @@ import plotly.graph_objs as go
 
 # 创建 Dash 应用
 app = dash.Dash(__name__)
-
+server = app.server
 
 # 连接到 SQLite 数据库并读取 Site_main 表格数据
 def get_site_main():
