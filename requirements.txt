@@ -1,0 +1,5 @@
+dash
+pandas
+sqlite3
+plotly
+gunicorn
