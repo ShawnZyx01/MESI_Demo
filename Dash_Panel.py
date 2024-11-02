@@ -120,4 +120,4 @@ tabs = pn.Tabs(
     ("Model", pn.Column(header, model_dashboard)),
 
 )
-tabs.show()
+tabs.servable()
