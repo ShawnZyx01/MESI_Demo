@@ -120,4 +120,4 @@ tabs = pn.Tabs(
     ("Model", pn.Column(header, model_dashboard)),
 
 )
-app = pn.serve(tabs, port=8000, show=False)
+app = pn.serve(tabs, port=8000)
