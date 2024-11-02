@@ -1,4 +1,6 @@
 dash
 pandas
 plotly
+panel
+numpy
 gunicorn
