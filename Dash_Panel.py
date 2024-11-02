@@ -121,5 +121,5 @@ tabs = pn.Tabs(
 
 )
 
-# Show dashboard
-tabs.show()
+if __name__ == "__main__":
+    pn.serve(tabs, port=8000, address="0.0.0.0")
