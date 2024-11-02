@@ -120,4 +120,4 @@ tabs = pn.Tabs(
     ("Model", pn.Column(header, model_dashboard)),
 
 )
-pn.serve(tabs, port=8000)
+pn.serve(tabs, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
