@@ -122,4 +122,4 @@ tabs = pn.Tabs(
 )
 
 if __name__ == "__main__":
-    pn.serve(tabs, port=port)
+    pn.serve(tabs, port=8051)
