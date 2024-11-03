@@ -127,5 +127,5 @@ tabs = pn.Tabs(
 table_panel = pn.panel(update_table)
 
 # Display the app
-
-pn.Column(tabs, table_panel).serve(tabs, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
+app = pn.Column(tabs, table_panel)
+pn.serve(app, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
