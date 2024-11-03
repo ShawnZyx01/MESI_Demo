@@ -1,3 +1,4 @@
+# Import necessary libraries
 import plotly.graph_objs as go
 import pandas as pd
 import panel as pn
@@ -38,7 +39,7 @@ lon_slider = pn.widgets.RangeSlider(
 )
 
 # Data display table
-site_data_table = pn.widgets.DataFrame( height=500, width=200)
+site_data_table = pn.widgets.DataFrame(height=500, width=200)
 
 # Define map plotting function
 @pn.depends(site_select.param.value, lat_slider.param.value, lon_slider.param.value)
@@ -75,17 +76,21 @@ def handle_click(event):
             site_select.value = [site for site in site_select.value if site != clicked_site]
         else:
             site_select.value = site_select.value + [clicked_site]
-        selected_data = df_main[df_main['site'].isin(site_select.value)]
-        site_data_table.value = selected_data
     else:
         print("Click event did not return expected data format:", event)
 
 # Watch for click events on plot_pane and trigger handle_click
 plot_pane.param.watch(handle_click, 'click_data')
 
+# Update data table based on site_select value
+@pn.depends(site_select.param.value)
+def update_table(selected_sites):
+    selected_data = df_main[df_main['site'].isin(selected_sites)]
+    site_data_table.value = selected_data if not selected_data.empty else pd.DataFrame(columns=df_main.columns)
+
 # Header with three buttons
 header = pn.Row(
-pn.layout.HSpacer(),
+    pn.layout.HSpacer(),
     pn.pane.Markdown("# MESI DASH", styles={'text-align': 'center', 'font-size': '20px'}),
     pn.layout.HSpacer(),  # To push buttons to the right
     height=100  # 10% of the full height
@@ -98,7 +103,7 @@ control_panel = pn.Column(
 main_dashboard = pn.Row(
     control_panel,
     pn.Spacer(width=30),
-    pn.Column(plot_pane,  width=700),
+    pn.Column(plot_pane, width=700),
     pn.Spacer(width=30),
     pn.Column(site_data_table, width=200)
 )
@@ -106,11 +111,9 @@ main_dashboard = pn.Row(
 # Analytics and Model placeholder pages
 analytics_dashboard = pn.Column(
     pn.pane.Markdown("# Analytics Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
-
 )
 model_dashboard = pn.Column(
     pn.pane.Markdown("# Model Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
-
 )
 
 # Tabs interface with three pages
@@ -118,6 +121,11 @@ tabs = pn.Tabs(
     ("Main", pn.Column(header, main_dashboard)),
     ("Analytics", pn.Column(header, analytics_dashboard)),
     ("Model", pn.Column(header, model_dashboard)),
-
 )
-pn.serve(tabs, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
+
+# Bind the update_table function to ensure table refresh
+table_panel = pn.panel(update_table)
+
+# Display the app
+
+pn.Column(tabs, table_panel).serve(tabs, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
