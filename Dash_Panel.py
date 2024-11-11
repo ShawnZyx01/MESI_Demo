@@ -1,4 +1,3 @@
-# Import necessary libraries
 import plotly.graph_objs as go
 import pandas as pd
 import panel as pn
@@ -15,7 +14,7 @@ df_main = pd.read_sql_query("SELECT * FROM Site_main", conn)
 df_metadata = pd.read_sql_query("SELECT * FROM Site_metadata", conn)
 conn.close()
 
-# Extract unique values
+# Extract unique values of unique index(site, lat, lon)
 unique_sites = df_main['site'].dropna().unique().tolist()
 unique_lats = df_main['lat'].dropna()
 unique_lons = df_main['lon'].dropna()
@@ -117,9 +116,9 @@ button_show_all.on_click(show_all_data)  # Add callback for the "Show All" butto
 # Watch for site selection changes and update table accordingly
 site_select.param.watch(update_table, 'value')
 
-# Define map plotting function
+# Define default main map plotting function
 @pn.depends(site_select.param.value, lat_slider.param.value, lon_slider.param.value)
-def plot_map(selected_sites, lat_range, lon_range):
+def plot_main_map(selected_sites, lat_range, lon_range):
     # Filter data by latitude and longitude range
     filtered_df = df_main[(df_main['lat'].between(*lat_range)) & (df_main['lon'].between(*lon_range))]
     filtered_df['color'] = filtered_df['site'].apply(lambda x: 'red' if x in selected_sites else 'blue')
@@ -143,9 +142,9 @@ def plot_map(selected_sites, lat_range, lon_range):
     return fig
 
 # Create a Plotly panel for the map and set up click event handling
-plot_pane = pn.pane.Plotly(plot_map)
+plot_pane = pn.pane.Plotly(plot_main_map)
 
-# Click event handler function
+# Click event on main map handler function
 def handle_click(event):
     if 'points' in event.new and len(event.new['points']) > 0:
         clicked_site = event.new['points'][0]['text']
@@ -159,12 +158,16 @@ def handle_click(event):
 # Watch for click events on plot_pane and trigger handle_click
 plot_pane.param.watch(handle_click, 'click_data')
 
-# Header with three buttons
+
+# Bind the update_table function to ensure table refresh
+table_panel = pn.panel(update_table)
+
+# Header 
 header = pn.Row(
     pn.layout.HSpacer(),
     pn.pane.Markdown("# MESI DASH", styles={'text-align': 'center', 'font-size': '20px'}),
     pn.layout.HSpacer(),
-    height=100  # Fixed height for header
+    height=80  # Fixed height for header
 )
 
 # Main dashboard layout with fixed width percentages
@@ -173,7 +176,7 @@ pn.Spacer(height=100),
     site_select, lat_slider, lon_slider, pn.Row(button_site_cite, button_site_meta), pn.Row(button_site_data, button_show_all),  width=200,
 )
 
-# Create dropdown widgets for treatment and response
+# Create dropdown widgets for treatment and response of ratio map
 treatment_select = pn.widgets.Select(name='Select Treatment', options=['f'], width = 180)  # Extend options as needed
 response_select = pn.widgets.Select(name='Select Response', options=['agb'], width = 180)  # Extend options as needed
 treatres_panel = pn.Column(
@@ -236,8 +239,11 @@ def update_ratio_map(treatment, response):
     )
 
     return fig
+
+# Create a Plotly panel for the ratio map 
 ratio_plot_pane = pn.pane.Plotly(update_ratio_map)
 
+# Dashboards layout
 main_dashboard = pn.Row(
     control_panel,
     pn.Spacer(width=30),
@@ -252,6 +258,7 @@ ratio_dashboard = pn.Row(treatres_panel, pn.Spacer(width=30), pn.Column(ratio_pl
 analytics_dashboard = pn.Column(
     pn.pane.Markdown("# Analytics Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
 )
+
 model_dashboard = pn.Column(
     pn.pane.Markdown("# Model Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
 )
@@ -262,9 +269,6 @@ tabs = pn.Tabs(
     ("Analytics", pn.Column(header, analytics_dashboard)),
     ("Model", pn.Column(header, model_dashboard)),
 )
-
-# Bind the update_table function to ensure table refresh
-table_panel = pn.panel(update_table)
 
 # Display the app
 app = pn.Column(tabs, table_panel)
