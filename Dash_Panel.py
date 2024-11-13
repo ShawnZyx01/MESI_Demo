@@ -248,9 +248,39 @@ def update_ratio_map(treatment, response, ecosystem_type):
 
     # Calculate quantiles for color scale
     lower_bound = df_grouped['ratio'].quantile(0.05)
-    upper_bound = df_grouped['ratio'].quantile(0.90)
+    upper_bound = df_grouped['ratio'].quantile(0.92)
 
-    colorscale = [[0, "red"], [abs(lower_bound) / (abs(lower_bound) + abs(upper_bound)), "white"], [1, "blue"]]
+    # Define colorscale based on data distribution
+    # Check and handle extreme cases
+    if df_grouped['ratio'].quantile(0.0) == df_grouped['ratio'].quantile(1):
+        # Case where all values are the same or only one data point
+        lower_bound = df_grouped['ratio'].quantile(0.0) - 1e-18
+        upper_bound = df_grouped['ratio'].quantile(1) + 1e-18
+
+    # Case when all values are zero
+    if (df_grouped['ratio'] == 0).all():
+        colorscale = [[0, "black"]]
+        lower_bound = -0.1
+        upper_bound = 0.1
+
+    # If data contains both negative and positive values
+    elif lower_bound < 0 < upper_bound:
+        zero_position = abs(lower_bound) / (abs(lower_bound) + upper_bound)
+        colorscale = [[0, "red"], [zero_position, "white"], [1, "blue"]]
+
+    # All values are positive
+    elif df_grouped['ratio'].quantile(0.0) >= 0:
+        lower_bound = 0
+        colorscale = [[0, "white"], [1, "blue"]]
+
+    # All values are negative
+    elif df_grouped['ratio'].quantile(1) <= 0:
+        upper_bound = 0
+        colorscale = [[0, "red"], [1, "white"]]
+
+    # Ensure color scale includes zero in all cases
+    cmin = min(lower_bound, 0)
+    cmax = max(upper_bound, 0)
 
     # Create Plotly scatter map
     fig = go.Figure(go.Scattergeo(
@@ -262,9 +292,9 @@ def update_ratio_map(treatment, response, ecosystem_type):
             size=3,
             color=df_grouped['ratio'],
             colorscale=colorscale,
-            cmin=lower_bound,
-            cmax=upper_bound,
-            colorbar=dict(title="Ratio")
+            cmin=cmin,
+            cmax=cmax,
+            colorbar=dict(title="Ratio(x_t / x_c)")
         )
     ))
 
