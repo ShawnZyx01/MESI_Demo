@@ -14,11 +14,20 @@ df_main = pd.read_sql_query("SELECT * FROM Site_main", conn)
 df_metadata = pd.read_sql_query("SELECT * FROM Site_metadata", conn)
 conn.close()
 
+# Header/Title
+header = pn.Row(
+    pn.layout.HSpacer(),
+    pn.pane.Markdown("# MESI DASH", styles={'text-align': 'center', 'font-size': '20px'}),
+    pn.layout.HSpacer(),
+    height=80  # Fixed height for header
+)
+
 # Extract unique values of unique index(site, lat, lon)
 unique_sites = df_main['site'].dropna().unique().tolist()
 unique_lats = df_main['lat'].dropna()
 unique_lons = df_main['lon'].dropna()
 
+# General main map
 # Create MultiChoice widget for selecting sites
 site_select = pn.widgets.MultiChoice(
     name='Select Site', options=df_main['site'].dropna().unique().tolist(), value=[],
@@ -39,7 +48,7 @@ lon_slider = pn.widgets.RangeSlider(
     value=(unique_lons.min(), unique_lons.max())
 )
 
-# Initialize DataFrame widget for displaying data
+# Initialize DataFrame widget for displaying general main data
 site_data_table = pn.widgets.Tabulator(pd.DataFrame(), height=500, width=310, show_index=False)
 
 # Define selected data option and initial site filter
@@ -106,7 +115,7 @@ def show_all_data(event):
 button_site_cite = pn.widgets.Button(name='Site_cite', button_type='primary')
 button_site_meta = pn.widgets.Button(name='Site_meta', button_type='primary')
 button_site_data = pn.widgets.Button(name='Site_data', button_type='primary')
-button_show_all = pn.widgets.Button(name='Show All', button_type='success')  # New button to reset to show all data
+button_show_all = pn.widgets.Button(name='Show All', button_type='success')  #Button to reset to show all data
 
 button_site_cite.on_click(select_site_cite)
 button_site_meta.on_click(select_site_meta)
@@ -162,30 +171,37 @@ plot_pane.param.watch(handle_click, 'click_data')
 # Bind the update_table function to ensure table refresh
 table_panel = pn.panel(update_table)
 
-# Header 
-header = pn.Row(
-    pn.layout.HSpacer(),
-    pn.pane.Markdown("# MESI DASH", styles={'text-align': 'center', 'font-size': '20px'}),
-    pn.layout.HSpacer(),
-    height=80  # Fixed height for header
-)
-
 # Main dashboard layout with fixed width percentages
 control_panel = pn.Column(
 pn.Spacer(height=100),
     site_select, lat_slider, lon_slider, pn.Row(button_site_cite, button_site_meta), pn.Row(button_site_data, button_show_all),  width=200,
 )
 
-# Create dropdown widgets for treatment and response of ratio map
-treatment_select = pn.widgets.Select(name='Select Treatment', options=['f'], width = 180)  # Extend options as needed
-response_select = pn.widgets.Select(name='Select Response', options=['agb'], width = 180)  # Extend options as needed
-treatres_panel = pn.Column(
-pn.Spacer(height=100),
-    treatment_select, response_select, width=200,
+# Main Dashboards layout
+main_dashboard = pn.Row(
+    control_panel,
+    pn.Spacer(width=30),
+    pn.Column(plot_pane, width=700),  # Increased map width
+    pn.Spacer(width=30),
+    pn.Column(site_data_table, width=200)  # Adjusted table width for balance
 )
 
-# Function to filter and calculate ratio based on treatment and response
-def calculate_ratio(treatment, response):
+# Ratio map
+# Create dropdown widgets for treatment, response, and ecosystem_type(optional)
+treatment_select = pn.widgets.Select(name='Select Treatment', options=['f', 'w', 'i', 'c', 'd'], width=180)
+response_select = pn.widgets.Select(name='Select Response', options=['agb'], width=180)
+ecosystem_type_select = pn.widgets.Select(name='Select Ecosystem', options=['All'],
+                                          width=180)  # "All" means do not select exact ecosystem_type
+
+treatres_panel = pn.Column(
+    pn.Spacer(height=100),
+    treatment_select, response_select, ecosystem_type_select, width=200,
+)
+
+# Ratio = log (x_t / x_c) (x_t means data under certain treatment and x_c means data in control)
+# Function to filter and calculate ratio based on treatment, response, and optional ecosystem_type
+def calculate_ratio(treatment, response, ecosystem_type=None):
+    # Filter data based on treatment and response
     df_filtered = df_main[(df_main['treatment'] == treatment) & (df_main['response'] == response)].copy()
 
     # Convert 'x_t' and 'x_c' to float and remove invalid values
@@ -200,16 +216,41 @@ def calculate_ratio(treatment, response):
     # Group by site, lat, lon, ecosystem_type and calculate mean ratio
     df_grouped_mean = df_filtered.groupby(['site', 'lat', 'lon', 'ecosystem_type']).ratio.mean().reset_index()
 
+    # Apply ecosystem_type filtering if a specific type is selected
+    if ecosystem_type and ecosystem_type != "All":
+        df_grouped_mean = df_grouped_mean[df_grouped_mean['ecosystem_type'] == ecosystem_type]
+
     return df_grouped_mean
 
-# Define a function to create and update the ratio map
+
+# Update ecosystem_type options based on selected treatment and response
 @pn.depends(treatment_select.param.value, response_select.param.value)
-def update_ratio_map(treatment, response):
-    df_grouped = calculate_ratio(treatment, response)
+def update_ecosystem_options(treatment, response):
+    # Filter data for the selected treatment and response
+    df_filtered = calculate_ratio(treatment, response)
+
+    # Get unique ecosystem_type values for the filtered data
+    available_ecosystems = ['All'] + df_filtered['ecosystem_type'].dropna().unique().tolist()
+    ecosystem_type_select.options = available_ecosystems  # Update the options
+
+
+update_ecosystem_options(treatment_select.value, response_select.value)
+
+# Define a table widget to display the filtered ratio data
+ratio_data_table = pn.widgets.Tabulator(pd.DataFrame(), height=500, width=310, show_index=False)
+
+
+# Define a function to create and update the ratio map and table
+@pn.depends(treatment_select.param.value, response_select.param.value, ecosystem_type_select.param.value)
+def update_ratio_map(treatment, response, ecosystem_type):
+    df_grouped = calculate_ratio(treatment, response, ecosystem_type if ecosystem_type != "All" else None)
+    ratio_data_table.value = df_grouped[['site', 'lat', 'lon', 'ecosystem_type', 'ratio']]
 
     # Calculate quantiles for color scale
-    lower_bound = df_grouped['ratio'].quantile(0.10)
+    lower_bound = df_grouped['ratio'].quantile(0.05)
     upper_bound = df_grouped['ratio'].quantile(0.90)
+
+    colorscale = [[0, "red"], [abs(lower_bound) / (abs(lower_bound) + abs(upper_bound)), "white"], [1, "blue"]]
 
     # Create Plotly scatter map
     fig = go.Figure(go.Scattergeo(
@@ -220,7 +261,7 @@ def update_ratio_map(treatment, response):
         marker=dict(
             size=3,
             color=df_grouped['ratio'],
-            colorscale='Bluered',
+            colorscale=colorscale,
             cmin=lower_bound,
             cmax=upper_bound,
             colorbar=dict(title="Ratio")
@@ -240,24 +281,29 @@ def update_ratio_map(treatment, response):
 
     return fig
 
-# Create a Plotly panel for the ratio map 
+
+# Create a Plotly panel for the ratio map
 ratio_plot_pane = pn.pane.Plotly(update_ratio_map)
 
-# Dashboards layout
-main_dashboard = pn.Row(
-    control_panel,
+# Combine into the dashboard layout
+ratio_dashboard = pn.Row(
+    treatres_panel,
     pn.Spacer(width=30),
-    pn.Column(plot_pane, width=700),  # Increased map width
-    pn.Spacer(width=30),
-    pn.Column(site_data_table, width=200)  # Adjusted table width for balance
+    pn.Column(ratio_plot_pane, width=700),
+    pn.Column(ratio_data_table, width=310)
 )
 
-ratio_dashboard = pn.Row(treatres_panel, pn.Spacer(width=30), pn.Column(ratio_plot_pane, width=700))
+# Display ecosystem_type options upon changing treatment and response
+treatment_select.param.watch(lambda event: update_ecosystem_options(event.new, response_select.value), 'value')
+response_select.param.watch(lambda event: update_ecosystem_options(treatment_select.value, event.new), 'value')
 
-# Analytics and Model placeholder pages
+# Analytics placeholder pages
+
 analytics_dashboard = pn.Column(
     pn.pane.Markdown("# Analytics Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
 )
+
+# Model placeholder pages
 
 model_dashboard = pn.Column(
     pn.pane.Markdown("# Model Page (Coming Soon)", styles={'font-size': '20px', 'text-align': 'center'}),
