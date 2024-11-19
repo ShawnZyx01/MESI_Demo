@@ -22,12 +22,27 @@ header = pn.Row(
     height=80  # Fixed height for header
 )
 
-# Extract unique values of unique index(site, lat, lon)
+# Extract unique values of site lat and lon as unique index(site, lat, lon)
 unique_sites = df_main['site'].dropna().unique().tolist()
 unique_lats = df_main['lat'].dropna()
 unique_lons = df_main['lon'].dropna()
 
-# General main map
+# Function to create a download button
+def create_download_button(dataframe, filename="data.csv"):
+    def get_file():
+        if dataframe is None or dataframe.empty:
+            # form an empty dataframe
+            buffer = io.StringIO("No data available\n")
+            return io.BytesIO(buffer.getvalue().encode('utf-8'))
+        else:
+            # transform to csv format
+            buffer = io.BytesIO()
+            dataframe.to_csv(buffer, index=False, encoding='utf-8')
+            buffer.seek(0)
+            return buffer
+    return pn.widgets.FileDownload(callback=get_file, filename=filename, button_type="success", name="Download CSV")
+
+# ## General main map formation
 # Create MultiChoice widget for selecting sites
 site_select = pn.widgets.MultiChoice(
     name='Select Site', options=df_main['site'].dropna().unique().tolist(), value=[],
@@ -167,7 +182,6 @@ def handle_click(event):
 # Watch for click events on plot_pane and trigger handle_click
 plot_pane.param.watch(handle_click, 'click_data')
 
-
 # Bind the update_table function to ensure table refresh
 table_panel = pn.panel(update_table)
 
@@ -177,19 +191,32 @@ pn.Spacer(height=100),
     site_select, lat_slider, lon_slider, pn.Row(button_site_cite, button_site_meta), pn.Row(button_site_data, button_show_all),  width=200,
 )
 
-# Main Dashboards layout
+# Create download button for site_data_table
+site_download_button = create_download_button(pd.DataFrame(), filename="site_data.csv")
+
+# Update the download button for site_data_table
+@pn.depends(site_data_table.param.value, watch=True)
+def update_site_download(value):
+    if value is not None and not value.empty:
+        site_download_button.filename = "site_data.csv"
+        site_download_button.callback = lambda: io.BytesIO(value.to_csv(index=False).encode('utf-8'))
+
+
+# Update the Panel layout to include the download buttons
 main_dashboard = pn.Row(
     control_panel,
     pn.Spacer(width=30),
     pn.Column(plot_pane, width=700),  # Increased map width
     pn.Spacer(width=30),
-    pn.Column(site_data_table, width=200)  # Adjusted table width for balance
+    pn.Column(site_data_table, site_download_button, width=200)  # Add download button next to site_data_table
 )
 
-# Ratio map
+
+
+# ##Ratio map formation
 # Create dropdown widgets for treatment, response, and ecosystem_type(optional)
 treatment_select = pn.widgets.Select(name='Select Treatment', options=['f', 'w', 'i', 'c', 'd'], width=180)
-response_select = pn.widgets.Select(name='Select Response', options=['agb'], width=180)
+response_select = pn.widgets.Select(name='Select Response', options=['agb','soil_total_c','soc'], width=180)
 ecosystem_type_select = pn.widgets.Select(name='Select Ecosystem', options=['All'],
                                           width=180)  # "All" means do not select exact ecosystem_type
 
@@ -221,7 +248,6 @@ def calculate_ratio(treatment, response, ecosystem_type=None):
         df_grouped_mean = df_grouped_mean[df_grouped_mean['ecosystem_type'] == ecosystem_type]
 
     return df_grouped_mean
-
 
 # Update ecosystem_type options based on selected treatment and response
 @pn.depends(treatment_select.param.value, response_select.param.value)
@@ -294,7 +320,7 @@ def update_ratio_map(treatment, response, ecosystem_type):
             colorscale=colorscale,
             cmin=cmin,
             cmax=cmax,
-            colorbar=dict(title="Ratio(x_t / x_c)")
+            colorbar=dict(title="Ratio(log(x_t / x_c))")
         )
     ))
 
@@ -311,16 +337,25 @@ def update_ratio_map(treatment, response, ecosystem_type):
 
     return fig
 
-
 # Create a Plotly panel for the ratio map
 ratio_plot_pane = pn.pane.Plotly(update_ratio_map)
+
+# Create download button for ratio_data_table
+ratio_download_button = create_download_button(pd.DataFrame(), filename="ratio_data.csv")
+
+# Update the download button for ratio_data_table
+@pn.depends(ratio_data_table.param.value, watch=True)
+def update_ratio_download(value):
+    if value is not None and not value.empty:
+        ratio_download_button.filename = "ratio_data.csv"
+        ratio_download_button.callback = lambda: io.BytesIO(value.to_csv(index=False).encode('utf-8'))
 
 # Combine into the dashboard layout
 ratio_dashboard = pn.Row(
     treatres_panel,
     pn.Spacer(width=30),
     pn.Column(ratio_plot_pane, width=700),
-    pn.Column(ratio_data_table, width=310)
+    pn.Column(ratio_data_table, ratio_download_button, width=310)  # Add download button next to ratio_data_table
 )
 
 # Display ecosystem_type options upon changing treatment and response
@@ -345,7 +380,8 @@ tabs = pn.Tabs(
     ("Analytics", pn.Column(header, analytics_dashboard)),
     ("Model", pn.Column(header, model_dashboard)),
 )
+import io
+
 
 # Display the app
-app = pn.Column(tabs, table_panel)
-pn.serve(app, port=8000, address="0.0.0.0", allow_websocket_origin=["mesi-dash-demo.onrender.com"])
+pn.Column(tabs, table_panel).show()
