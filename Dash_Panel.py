@@ -159,7 +159,10 @@ def plot_main_map(selected_sites, lat_range, lon_range):
 
     fig.update_layout(
         title='',
-        geo=dict(projection_type='natural earth', showland=True, landcolor="lightgray", coastlinecolor="white"),
+        geo=dict(projection_type='natural earth',
+                 showland=True,
+                 landcolor="lightgray",
+                 coastlinecolor="black"),
         margin=dict(l=0, r=0, t=0, b=0),
         width=700, height=600  # Adjusted width and height for map size
     )
@@ -331,8 +334,8 @@ def update_ratio_map(treatment, response, ecosystem_type):
             projection_type='natural earth',
             showland=True,
             landcolor="lightgray",
-            coastlinecolor="white"
-        ),
+            coastlinecolor="black"),
+        width=900 # Adjusted width and height for map size
     )
 
     return fig
@@ -354,7 +357,7 @@ def update_ratio_download(value):
 ratio_dashboard = pn.Row(
     treatres_panel,
     pn.Spacer(width=30),
-    pn.Column(ratio_plot_pane, width=700),
+    pn.Column(ratio_plot_pane, width=800),
     pn.Column(ratio_data_table, ratio_download_button, width=310)  # Add download button next to ratio_data_table
 )
 
@@ -380,8 +383,6 @@ tabs = pn.Tabs(
     ("Analytics", pn.Column(header, analytics_dashboard)),
     ("Model", pn.Column(header, model_dashboard)),
 )
-import io
-
 
 # Display the app
 app = pn.Column(tabs, table_panel)
